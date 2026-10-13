@@ -1,0 +1,32 @@
+name: Something isn't working
+description: Report a problem with Forge AIOS
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How do you run Forge AIOS?
+      options:
+        - Windows app
+        - Server mode (Docker)
+        - From source
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Forge AIOS version (Settings → Apps, or the release you installed) and Claude Code version (shown in the top bar if it's newer than tested, or run `claude --version`).
+  - type: textarea
+    id: log
+    attributes:
+      label: The end of the log
+      description: Tray icon → Open the log (Windows app), or `docker logs forge-aios`. Remove anything private first.
+      render: text

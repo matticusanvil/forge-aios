@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/matticusanvil/forge-aios/security/advisories/new
+    about: Please don't report vulnerabilities in a public issue.
+  - name: Problems with Claude Code itself
+    url: https://github.com/anthropics/claude-code/issues
+    about: Bugs in Claude Code (not Forge AIOS) go to Anthropic.

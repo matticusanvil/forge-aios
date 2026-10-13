@@ -223,7 +223,7 @@ function makeTray() {
 function openSetup() {
   setupWin = new BrowserWindow({
     width: 760,
-    height: 640,
+    height: 680,
     resizable: false,
     backgroundColor: '#0a0a0b',
     title: 'Set up Forge AIOS',

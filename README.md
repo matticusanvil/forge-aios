@@ -10,10 +10,12 @@ Forge AIOS runs the official Claude Code command-line tool, unmodified, and sign
 
 ## Status
 
-| How to run it | State |
+| How to run it | For |
 | --- | --- |
-| On a Linux server or PC with Docker ("server mode") | Works today: this is how it was built and is used daily |
-| Windows app with an installer | In progress; there's no download yet |
+| **Windows app** with an installer | One person on their own PC. No commands needed: [install guide](docs/install-windows.md) |
+| **Server mode** (Docker on Linux) | A home server you reach from your other machines: [below](#server-mode-docker) |
+
+Forge AIOS is young: version 0.x. Expect rough edges, and please [report them](https://github.com/matticusanvil/forge-aios/issues).
 
 ## What it does
 
@@ -30,6 +32,12 @@ Forge AIOS runs the official Claude Code command-line tool, unmodified, and sign
 - **Knowledge graphs:** link a wiki repo so Claude can read it while it works. Linked wikis are read-only, and Claude can't change them. You can also create a new wiki from a session.
 
 ![Steering and stopping subagents](docs/images/steer-and-stop.webp)
+
+## Windows app
+
+Download **Forge-AIOS-Setup-x.y.z.exe** from the [latest release](https://github.com/matticusanvil/forge-aios/releases/latest) and open it. Setup installs Git and Claude Code if they're missing, then opens Claude Code's own sign-in for your Claude account. The [install guide](docs/install-windows.md) walks through it with pictures; if something goes wrong, see [Troubleshooting](docs/troubleshooting.md).
+
+The app runs Forge on your PC only: nothing else on your network can reach it, and websites in your browser can't either. It updates itself from GitHub Releases.
 
 ## Server mode (Docker)
 
@@ -112,6 +120,8 @@ npm run check   # typecheck the server and the web app
 npm test        # fast tests, no Claude needed
 npm run build   # build the web app
 ```
+
+The Windows app lives in `desktop/`: `cd desktop && npm install && npm start` runs it from source (set `FORGE_NODE` to a Node 22 `node.exe`), and `npm run dist` builds the installer. Pushing a `v*` tag builds, signs and publishes a release.
 
 The **live gate tests** in `test/` drive a running Forge over the same WebSocket as the browser. They use real Claude turns on your account. They start new sessions in the `playground` and `playground-b` projects, so don't run them while you're working there. `playground` needs the files in `test/fixture-project`.
 

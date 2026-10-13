@@ -28,7 +28,7 @@ async function refresh() {
   mark('step-git', s.git, true);
   mark('step-claude', s.claude, s.git);
   mark('step-signin', s.signedIn, s.git && s.claude);
-  mark('step-folder', !!folder, s.signedIn);
+  mark('step-folder', s.signedIn && !!folder, s.signedIn);
   $('finish').disabled = !(s.git && s.claude && s.signedIn && folder);
   if (s.signedIn && polling) {
     clearInterval(polling);
