@@ -13,8 +13,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -29,6 +29,12 @@ jobs:
         working-directory: desktop
       - run: node prepare.mjs
         working-directory: desktop
+      # One draft release up front: electron-builder uploads its files in parallel and would otherwise create one each.
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "Forge AIOS ${GITHUB_REF_NAME#v}" --notes "See the changes since the last release below."
       - name: Build, sign and publish the installer
         working-directory: desktop
         env:
