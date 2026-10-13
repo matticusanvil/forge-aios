@@ -1,17 +1,24 @@
 name: Release
 
-# Pushing a tag like v0.2.0 builds the Windows installer and publishes it to GitHub Releases, where the app's
-# auto-update finds it. The installer is signed when the signing secrets below are set.
+# Pushing a tag like v0.2.0 builds the Windows installer in GitHub Actions, has it signed through SignPath (once the
+# SignPath settings below exist; a person approves each signing there), and publishes it to a draft GitHub release,
+# where the app's auto-update finds it once the draft is published.
+#
+# SignPath settings: secret SIGNPATH_API_TOKEN; variables SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and
+# SIGNPATH_SIGNING_POLICY_SLUG (and optionally SIGNPATH_ARTIFACT_CONFIGURATION_SLUG). Without them the installer is unsigned.
 on:
   push:
     tags: ['v*']
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      SIGN: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -24,31 +31,53 @@ jobs:
       - run: npm run build
       - name: Set the app version from the tag
         shell: bash
-        run: cd desktop && npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+        run: cd desktop && npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
       - run: npm ci
         working-directory: desktop
-      - run: node prepare.mjs
+      - name: Build the installer
         working-directory: desktop
-      # One draft release up front: electron-builder uploads its files in parallel and would otherwise create one each.
-      - name: Create the draft release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist
+      - name: Find the installer
+        id: installer
         shell: bash
-        run: gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "Forge AIOS ${GITHUB_REF_NAME#v}" --notes "See the changes since the last release below."
-      - name: Build, sign and publish the installer
-        working-directory: desktop
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Azure Trusted Signing (electron-builder's win.azureSignOptions reads these); unsigned when they're absent.
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: echo "file=$(ls desktop/dist/Forge-AIOS-Setup-*.exe)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the unsigned installer for signing
+        if: env.SIGN == 'true'
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: ${{ steps.installer.outputs.file }}
+      - name: Sign with SignPath (waits for approval)
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          connector-url: https://githubactions.connectors.signpath.io
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+      - name: Use the signed installer
+        if: env.SIGN == 'true'
         shell: bash
         run: |
-          if [ -n "$AZURE_CLIENT_ID" ]; then
-            npx electron-builder --win --publish always -c.win.azureSignOptions.endpoint="${{ vars.AZURE_SIGNING_ENDPOINT }}" \
-              -c.win.azureSignOptions.certificateProfileName="${{ vars.AZURE_CERT_PROFILE }}" -c.win.azureSignOptions.codeSigningAccountName="${{ vars.AZURE_SIGNING_ACCOUNT }}"
-          else
-            echo "::warning::No signing secrets: this installer is unsigned, so Windows SmartScreen will warn."
-            npx electron-builder --win --publish always
-          fi
+          cp signed/*.exe "${{ steps.installer.outputs.file }}"
+          node desktop/update-latest.mjs "${{ steps.installer.outputs.file }}" desktop/dist/latest.yml
+          # The blockmap describes the unsigned bytes; without it, updates download the whole installer instead.
+          rm -f desktop/dist/*.blockmap
+      - name: Unsigned build
+        if: env.SIGN != 'true'
+        run: echo "::warning::SignPath isn't set up yet, so this installer is unsigned and Windows SmartScreen will warn."
+
+      - name: Publish to a draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "Forge AIOS ${GITHUB_REF_NAME#v}" --notes "Release notes to come."
+          gh release upload "$GITHUB_REF_NAME" desktop/dist/Forge-AIOS-Setup-*.exe desktop/dist/latest.yml $(ls desktop/dist/*.blockmap 2>/dev/null) --clobber

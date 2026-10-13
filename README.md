@@ -131,6 +131,20 @@ FORGE_URL=http://your-server:3200 FORGE_API_TOKEN=... npm run gates
 
 Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Privacy
+
+Forge AIOS collects nothing and has no telemetry. Your work goes to Anthropic through Claude Code, as it would in Claude Code itself. Details: [Privacy](docs/privacy.md).
+
+## Code signing policy
+
+Windows installers will be signed once SignPath Foundation approves the project; until then they're unsigned, and Windows warns when you open one. Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Committers and reviewers: [the repository's collaborators](https://github.com/matticusanvil/forge-aios/graphs/contributors)
+- Approvers: [@matticusanvil](https://github.com/matticusanvil)
+- Privacy policy: [docs/privacy.md](docs/privacy.md)
+
+Every installer is built by GitHub Actions from the tagged source in this repository, and a person approves each signing.
+
 ## License
 
 [Apache License 2.0](LICENSE). Copyright 2026 Anvil Digital.

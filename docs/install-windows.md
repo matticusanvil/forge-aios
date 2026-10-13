@@ -2,6 +2,8 @@
 
 This takes about ten minutes. You need Windows 10 or 11 and a Claude account: a Pro, Max, Team or Enterprise plan, or an Anthropic Console account with API billing. You don't need admin rights, and you won't need to type any commands.
 
+Forge AIOS is free and open source. Signed installers are on the way: see the [code signing policy](../README.md#code-signing-policy). Forge collects nothing about you: see [Privacy](privacy.md).
+
 ## 1. Download
 
 Go to the [latest release](https://github.com/matticusanvil/forge-aios/releases/latest). Under **Assets**, download **Forge-AIOS-Setup-x.y.z.exe**.
