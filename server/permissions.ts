@@ -47,23 +47,44 @@ export type Verdict = { decision: 'allow' | 'deny'; reason?: string };
 type Pending = { approval: Approval; token: string; resolve: (v: Verdict) => void; timer: NodeJS.Timeout };
 type RecordFn = (kind: string, agentId: string | null, payload: unknown) => void;
 
+/** Path rules for this machine: Windows paths are case-insensitive and take either slash. Tests pass path.win32 or path.posix. */
+export type PathApi = typeof path.posix;
+const HOST_PATHS: PathApi = process.platform === 'win32' ? path.win32 : path.posix;
+
+/** True when `target` is `dir` itself or inside it. */
+export function isInside(target: string, dir: string, p: PathApi = HOST_PATHS): boolean {
+  const rel = p.relative(dir, target);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${p.sep}`) && !p.isAbsolute(rel));
+}
+
+/** A word in a command that names an absolute path, in the form `isInside` compares: Git Bash's /c/Users/… becomes C:\Users\…. */
+function absolutePath(word: string, p: PathApi): string | null {
+  if (p === path.win32) {
+    if (/^\/[a-zA-Z](\/|$)/.test(word)) return `${word[1]}:\\${word.slice(3)}`;
+    if (/^[a-zA-Z]:[\\/]/.test(word) || word.startsWith('\\\\')) return word;
+  }
+  return word.startsWith('/') ? word : null;
+}
+
 /** True when a command names no path outside `dir`: no "..", no "~", no absolute path elsewhere, no command substitution. */
-export function staysInside(command: string, dir: string): boolean {
-  if (/\$\(|`|(^|[\s'"=:])~|(^|[\s/'"=])\.\.(\/|[\s'"]|$)/.test(command)) return false;
+export function staysInside(command: string, dir: string, p: PathApi = HOST_PATHS): boolean {
+  if (/\$\(|`|(^|[\s'"=:])~|(^|[\s/\\'"=])\.\.([/\\]|[\s'"]|$)/.test(command)) return false;
   return command.split(/\s+/).every((w) => {
     const word = w.replace(/^[0-9]*[<>]+&?/, '').replace(/^['"]/, '').replace(/['"]$/, '');
-    return !word.startsWith('/') || word === dir || word.startsWith(`${dir}/`) || word === '/dev/null';
+    if (word === '/dev/null' || /^nul$/i.test(word)) return true;
+    const abs = absolutePath(word, p);
+    return abs === null || isInside(abs, dir, p);
   });
 }
 
 /** True for a command that only looks around, or (with work) also builds, tests and commits, entirely inside `dir`. */
-export function trustedCommand(command: string, dir: string, work: boolean): boolean {
-  if (!staysInside(command, dir)) return false;
+export function trustedCommand(command: string, dir: string, work: boolean, p: PathApi = HOST_PATHS): boolean {
+  if (!staysInside(command, dir, p)) return false;
   // find can run or delete things; a plain ">" overwrites files (look-around commands only print).
   if (/\s-(exec|execdir|delete|ok|fprint)\b/.test(command)) return false;
   return commandSegments(command).every((seg) => {
     const prefix = commandPrefix(seg);
-    if (LOOK_COMMANDS.has(prefix) && !/(^|[^0-9&])>(?!&)/.test(seg.replace(/[0-9]?>\s*\/dev\/null/g, ''))) return true;
+    if (LOOK_COMMANDS.has(prefix) && !/(^|[^0-9&])>(?!&)/.test(seg.replace(/[0-9]?>\s*(\/dev\/null|nul\b)/gi, ''))) return true;
     return work && WORK_COMMANDS.has(prefix);
   });
 }
@@ -121,9 +142,13 @@ export class Permissions extends EventEmitter {
   /** Wiki builder workers (agent id → their wiki folder): edits and basic git inside it run without asking. */
   builders = new Map<string, string>();
 
-  constructor(opts: { store: EventLog; record: RecordFn; projectDir: string }) {
+  /** Path rules: this machine's, unless a test passes others. */
+  private paths: PathApi;
+
+  constructor(opts: { store: EventLog; record: RecordFn; projectDir: string; paths?: PathApi }) {
     super();
-    this.projectDir = path.resolve(opts.projectDir);
+    this.paths = opts.paths ?? HOST_PATHS;
+    this.projectDir = this.paths.resolve(opts.projectDir);
     this.store = opts.store;
     this.record = opts.record;
   }
@@ -140,26 +165,27 @@ export class Permissions extends EventEmitter {
   check(agentId: string | null, tool: string, input: Record<string, unknown>, toolUseId?: string, signal?: AbortSignal): Promise<Verdict> | Verdict {
     if (ALWAYS_ALLOW.has(tool) || (this.autoAllowReadOnly && READ_ONLY.has(tool))) return { decision: 'allow' };
     if (UNAVAILABLE[tool]) return { decision: 'deny', reason: UNAVAILABLE[tool] };
+    const p = this.paths;
     const file = String(input.file_path ?? input.notebook_path ?? '');
-    if (EDIT_TOOLS.has(tool) && this.readOnlyDirs.some((d) => file === d || file.startsWith(`${d}/`))) {
+    // Where the file really is: a relative path is relative to the project, as Claude Code sees it.
+    const target = file && p.resolve(this.projectDir, absolutePath(file, p) ?? file);
+    if (EDIT_TOOLS.has(tool) && target && this.readOnlyDirs.some((d) => isInside(target, d, p))) {
       this.record('approval.auto', agentId, { tool, summary: toolSummary(tool, input), refused: 'linked wiki is read only' });
       return { decision: 'deny', reason: 'That file is in a linked context wiki, which is read only in this session. Don’t change it; tell the user what you would change instead.' };
     }
     const builderDir = agentId ? this.builders.get(agentId) : undefined;
     if (builderDir) {
-      const inside = EDIT_TOOLS.has(tool) && file.startsWith(`${builderDir}/`);
+      const inside = EDIT_TOOLS.has(tool) && !!target && isInside(target, builderDir, p) && target !== p.resolve(builderDir);
       const command = String(input.command ?? '');
-      // Its own commands, and only paths inside its wiki: no "..", no "~", no absolute path elsewhere.
-      const staysInside = !/\.\.|~/.test(command) && command.split(/\s+/).every((w) => !w.replace(/^['"]/, '').startsWith('/') || w.replace(/^['"]/, '').startsWith(`${builderDir}/`) || w.replace(/^['"]/, '') === builderDir);
-      const safeShell = tool === 'Bash' && staysInside && commandSegments(command).every((seg) => BUILDER_COMMANDS.has(commandPrefix(seg)));
+      // Its own commands, and only paths inside its wiki.
+      const safeShell = tool === 'Bash' && staysInside(command, builderDir, p) && commandSegments(command).every((seg) => BUILDER_COMMANDS.has(commandPrefix(seg)));
       if (inside || safeShell) return { decision: 'allow' };
     }
     if (this.level === 'all') return { decision: 'allow' };
     if (this.level === 'project') {
       const dir = this.projectDir;
-      const target = file && path.resolve(dir, file);
-      const editInside = EDIT_TOOLS.has(tool) && !!target && target.startsWith(`${dir}/`) && !target.startsWith(`${dir}/.git/`);
-      if (editInside || (tool === 'Bash' && trustedCommand(String(input.command ?? ''), dir, true))) return { decision: 'allow' };
+      const editInside = EDIT_TOOLS.has(tool) && !!target && target !== dir && isInside(target, dir, p) && !isInside(target, p.join(dir, '.git'), p);
+      if (editInside || (tool === 'Bash' && trustedCommand(String(input.command ?? ''), dir, true, p))) return { decision: 'allow' };
     }
     const needed = rulesFor(tool, input);
     const have = new Set(this.store.rules().map((r) => r.key));

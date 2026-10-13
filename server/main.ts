@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Auth } from './auth.ts';
 import { Notifier, notifyConfigFromEnv } from './notify.ts';
+import { CLAUDE, DATA_DIR, DEFAULT_PROJECT } from './paths.ts';
 import { Project, type ClientMessage, type Globals, type ProjectSummary } from './project.ts';
 import { Wikis } from './wikis.ts';
 
@@ -15,9 +16,10 @@ const run = promisify(execFile);
 
 const PORT = Number(process.env.PORT ?? 3200);
 // The project a new browser (or test) lands on; every folder beside it is a project too.
-const DEFAULT_DIR = process.env.FORGE_PROJECT ?? '/srv/repos/playground';
+const DEFAULT_DIR = DEFAULT_PROJECT;
 const REPOS = process.env.FORGE_REPOS ?? path.dirname(DEFAULT_DIR);
-const DATA = process.env.FORGE_DATA ?? '/data';
+const DATA = DATA_DIR;
+fs.mkdirSync(REPOS, { recursive: true });
 // Normally empty: the PreToolUse hook decides every call. Kept for tests that need a fixed allowlist.
 const ALLOWED_TOOLS = process.env.FORGE_ALLOWED_TOOLS ? process.env.FORGE_ALLOWED_TOOLS.split(',') : [];
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -56,7 +58,7 @@ globals.wikis.on('removed', (id: string) => {
 });
 
 // How the CLI is logged in, so silent API billing is visible (plan: Risks).
-execFile('claude', ['auth', 'status'], { env: { ...process.env, ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '' } }, (_err, stdout) => {
+execFile(CLAUDE, ['auth', 'status'], { env: { ...process.env, ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '' } }, (_err, stdout) => {
   try {
     const s = JSON.parse(stdout);
     account.login = { loggedIn: !!s.loggedIn, method: String(s.authMethod ?? 'none'), plan: s.subscriptionType ?? null };

@@ -1,14 +1,15 @@
 // Fast tests for the approval rules: no server, no Claude.
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { test } from 'node:test';
-import { commandPrefix, commandSegments, Permissions, rulesFor, trustedCommand } from '../../server/permissions.ts';
+import { commandPrefix, commandSegments, isInside, Permissions, rulesFor, trustedCommand } from '../../server/permissions.ts';
 
 const DIR = '/srv/repos/demo';
 
 // A stand-in for the project database: only the session rules matter here.
-function permissions(level: 'ask' | 'project' | 'all', rules: string[] = []) {
+function permissions(level: 'ask' | 'project' | 'all', rules: string[] = [], dir = DIR, paths = path.posix) {
   const store = { rules: () => rules.map((key) => ({ key, label: key })), addRule() {}, clearRules() {}, removeRule() {} };
-  const p = new Permissions({ store: store as any, record: () => {}, projectDir: DIR });
+  const p = new Permissions({ store: store as any, record: () => {}, projectDir: dir, paths });
   p.level = level;
   return p;
 }
@@ -101,4 +102,39 @@ test('Allow everything: nothing asks, but linked wikis stay read only', () => {
 
 test('AskUserQuestion is refused with a reason at every level', () => {
   for (const level of ['ask', 'project', 'all'] as const) assert.equal(allowed(permissions(level), 'AskUserQuestion', {}), 'denied');
+});
+
+// Windows: Claude Code passes C:\ paths to file tools; Git Bash commands may write C:\, C:/ or /c/.
+const WIN = 'C:\\Users\\me\\proj';
+
+test('Windows paths: inside the project, case and slashes aside', () => {
+  assert.equal(isInside('c:/users/ME/proj/src/a.ts', WIN, path.win32), true);
+  assert.equal(isInside('C:\\Users\\me\\project2\\a.ts', WIN, path.win32), false);
+  assert.equal(isInside('D:\\proj\\a.ts', WIN, path.win32), false);
+});
+
+const trustedWin: [string, boolean][] = [
+  ['ls src', true],
+  ['cat /c/Users/me/proj/README.md', true],
+  ['cat C:/Users/me/proj/README.md', true],
+  ['git status 2>NUL', true],
+  ['cat /c/Users/me/other/secret.txt', false],
+  ['cat C:\\Windows\\win.ini', false],
+  ['type ..\\other\\secret.txt', false],
+  ['cat /etc/passwd', false],
+  ['npm test', true],
+  ['rm -rf dist', false],
+];
+for (const [command, expected] of trustedWin) {
+  test(`Trusted project on Windows ${expected ? 'allows' : 'asks for'}: ${command}`, () => {
+    assert.equal(trustedCommand(command, WIN, true, path.win32), expected);
+  });
+}
+
+test('Trusted project on Windows: edits inside the project run, elsewhere they ask', () => {
+  const p = permissions('project', [], WIN, path.win32);
+  assert.equal(allowed(p, 'Edit', { file_path: 'C:\\Users\\me\\proj\\src\\a.ts' }), true);
+  assert.equal(allowed(p, 'Write', { file_path: 'src/new.ts' }), true);
+  assert.equal(allowed(p, 'Write', { file_path: 'C:\\Users\\me\\proj\\.git\\config' }), false);
+  assert.equal(allowed(p, 'Write', { file_path: 'C:\\Users\\me\\Desktop\\a.txt' }), false);
 });

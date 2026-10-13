@@ -3,8 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { DATA_DIR } from './paths.ts';
 
-const DATA = process.env.FORGE_DATA ?? '/data';
+const DATA = DATA_DIR;
 const out = process.argv[2];
 if (!out) throw new Error('usage: node server/backup.ts <out-dir>');
 fs.mkdirSync(out, { recursive: true });

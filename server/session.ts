@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import readline from 'node:readline';
+import { CLAUDE, killTree } from './paths.ts';
 
 const HOOK_EVENTS = ['PreToolUse', 'PostToolUse', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit'] as const;
 
@@ -73,7 +74,7 @@ export class Session extends EventEmitter {
     if (!child) return;
     this.interrupt();
     child.stdin.end();
-    const timer = setTimeout(() => child.kill('SIGTERM'), 5_000);
+    const timer = setTimeout(() => killTree(child), 5_000);
     child.once('exit', () => clearTimeout(timer));
   }
 
@@ -104,7 +105,7 @@ export class Session extends EventEmitter {
       // --allowedTools is variadic, so it goes last (phase 0 finding).
       ...(allowedTools.length ? ['--allowedTools', ...allowedTools] : []),
     ];
-    const child = spawn('claude', args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(CLAUDE, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.child = child;
 
     readline.createInterface({ input: child.stdout }).on('line', (line) => {
