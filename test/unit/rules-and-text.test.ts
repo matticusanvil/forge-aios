@@ -31,3 +31,11 @@ test('secrets are hidden before they are shown', () => {
   assert.equal(redact('git clone https://user:pass123@github.com/x/y'), 'git clone https://user:***@github.com/x/y');
   assert.equal(redact('src/components/Button.tsx'), 'src/components/Button.tsx');
 });
+
+test('version comparison for the Claude Code warning', async () => {
+  const { newerVersion } = await import('../../server/config.ts');
+  assert.equal(newerVersion('2.1.300', '2.1.296'), true);
+  assert.equal(newerVersion('2.2.0', '2.1.296'), true);
+  assert.equal(newerVersion('2.1.296', '2.1.296'), false);
+  assert.equal(newerVersion('2.0.99', '2.1.296'), false);
+});

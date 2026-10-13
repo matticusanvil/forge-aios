@@ -169,3 +169,6 @@ span.fa-lane__mark { pointer-events: none; }
   .cockpit-chat { height: 78vh; }
   .cockpit-subagents { max-height: 70vh; }
 }
+
+/* A top-bar note that needs attention (an untested Claude Code version). */
+.cockpit-warning { color: var(--warning); }

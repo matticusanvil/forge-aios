@@ -31,7 +31,7 @@ export type Globals = {
   notifier: Notifier;
   wikis: Wikis;
   /** Account-wide state shown in every project's top bar. */
-  account: () => { login: unknown; rateLimits: unknown };
+  account: () => { login: unknown; rateLimits: unknown; claude: { version: string; tested: boolean } | null };
   setRateLimits: (r: unknown) => void;
 };
 
@@ -133,7 +133,7 @@ export class Project extends EventEmitter {
   }
 
   sessionState() {
-    const { login, rateLimits } = this.g.account();
+    const { login, rateLimits, claude } = this.g.account();
     return {
       project: this.dir,
       projectName: this.name,
@@ -145,6 +145,7 @@ export class Project extends EventEmitter {
       apiKeySource: this.status.apiKeySource,
       model: this.status.model,
       rateLimits,
+      claude,
       phone: this.g.notifier.enabled && !this.g.notifier.muted && this.rules.phone,
       maxRunning: this.rules.maxRunning,
       agentTypes: this.status.agentTypes,

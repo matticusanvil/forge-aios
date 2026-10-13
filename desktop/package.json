@@ -20,13 +20,32 @@
     "appId": "ca.anvildigital.forgeaios",
     "productName": "Forge AIOS",
     "copyright": "Copyright 2026 Anvil Digital",
-    "directories": { "output": "dist", "buildResources": "." },
-    "files": ["main.cjs", "preload.cjs", "setup.html", "setup.js", "icon.png"],
-    "extraResources": [
-      { "from": "build/forge", "to": "forge" },
-      { "from": "build/node", "to": "node" }
+    "directories": {
+      "output": "dist",
+      "buildResources": "."
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "setup.html",
+      "setup.js",
+      "icon.png"
     ],
-    "win": { "target": "nsis", "icon": "icon.png", "artifactName": "Forge-AIOS-Setup-${version}.${ext}" },
+    "extraResources": [
+      {
+        "from": "build/forge",
+        "to": "forge"
+      },
+      {
+        "from": "build/node",
+        "to": "node"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png",
+      "artifactName": "Forge-AIOS-Setup-${version}.${ext}"
+    },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
@@ -37,6 +56,13 @@
       "deleteAppDataOnUninstall": false,
       "include": "uninstall.nsh"
     },
-    "publish": { "provider": "github", "owner": "matticusanvil", "repo": "forge-aios" }
+    "publish": {
+      "provider": "github",
+      "owner": "matticusanvil",
+      "repo": "forge-aios"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
   }
 }

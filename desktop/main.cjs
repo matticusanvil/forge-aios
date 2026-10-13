@@ -242,6 +242,17 @@ function openSetup() {
   });
 }
 
+/** Updates come from GitHub Releases: downloaded in the background, installed when the app next quits. */
+function checkForUpdates() {
+  if (!app.isPackaged) return;
+  const { autoUpdater } = require('electron-updater');
+  autoUpdater.on('update-downloaded', (info) => {
+    tray?.displayBalloon({ title: 'Forge AIOS update ready', content: `Version ${info.version} installs when you quit Forge AIOS.`, iconType: 'info' });
+  });
+  autoUpdater.on('error', () => {}); // offline, or no release yet: try again next launch
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+
 async function launch() {
   const port = await startServer().catch((err) => {
     dialog.showErrorBox('Forge AIOS', String(err.message ?? err));
@@ -252,6 +263,7 @@ async function launch() {
   makeTray();
   openMain(port.port, port.key);
   if (process.argv.includes('--hidden')) win.hide();
+  checkForUpdates();
 }
 
 // ---------- what the setup page and the Forge window may ask for ----------

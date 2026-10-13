@@ -155,6 +155,8 @@ export type SessionState = {
   apiKeySource: string | null;
   model: string | null;
   rateLimits: { unifiedWindows?: Record<string, RateWindow> } | null;
+  /** The Claude Code version running, and whether this Forge was tested with it. */
+  claude?: { version: string; tested: boolean } | null;
   phone: boolean;
 };
 

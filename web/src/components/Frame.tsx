@@ -59,6 +59,11 @@ export function Frame({ session, connected, pendingApprovals, runningAgents, onI
           {session?.model && <span className="fa-frame__bar-text" title="The main session's model">{modelLabel(session.model)}</span>}
           <span className="fa-frame__bar-text">{loginText(session)}</span>
           {usage && <span className="fa-frame__bar-text" title="Plan usage in the current five-hour and seven-day windows">{usage}</span>}
+          {session?.claude && !session.claude.tested && (
+            <span className="fa-frame__bar-text cockpit-warning" title="Claude Code updates itself. If something misbehaves, check for a Forge AIOS update.">
+              Claude Code {session.claude.version} is newer than this Forge was tested with
+            </span>
+          )}
           <button className="fa-frame__bar-cap cockpit-interrupt" onClick={onInterrupt} disabled={!session?.busy}>
             Interrupt
           </button>

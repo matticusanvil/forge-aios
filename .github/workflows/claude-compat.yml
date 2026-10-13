@@ -1,0 +1,23 @@
+name: Claude Code compatibility
+
+# Claude Code updates itself on users' machines, so check every week that the newest one still has what Forge uses.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the newest Claude Code
+        run: curl -fsSL https://claude.ai/install.sh | bash
+      - name: Check the flags and commands Forge uses
+        run: FORGE_CLAUDE="$HOME/.local/bin/claude" node test/claude-flags.ts

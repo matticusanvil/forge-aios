@@ -1,0 +1,48 @@
+name: Release
+
+# Pushing a tag like v0.2.0 builds the Windows installer and publishes it to GitHub Releases, where the app's
+# auto-update finds it. The installer is signed when the signing secrets below are set.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Set the app version from the tag
+        shell: bash
+        run: cd desktop && npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+      - run: npm ci
+        working-directory: desktop
+      - run: node prepare.mjs
+        working-directory: desktop
+      - name: Build, sign and publish the installer
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Azure Trusted Signing (electron-builder's win.azureSignOptions reads these); unsigned when they're absent.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        shell: bash
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ]; then
+            npx electron-builder --win --publish always -c.win.azureSignOptions.endpoint="${{ vars.AZURE_SIGNING_ENDPOINT }}" \
+              -c.win.azureSignOptions.certificateProfileName="${{ vars.AZURE_CERT_PROFILE }}" -c.win.azureSignOptions.codeSigningAccountName="${{ vars.AZURE_SIGNING_ACCOUNT }}"
+          else
+            echo "::warning::No signing secrets: this installer is unsigned, so Windows SmartScreen will warn."
+            npx electron-builder --win --publish always
+          fi

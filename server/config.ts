@@ -21,6 +21,17 @@ export const CLAUDE = process.env.FORGE_CLAUDE ?? (() => {
   return windows && fs.existsSync(installed) ? installed : 'claude';
 })();
 
+/** The newest Claude Code this version of Forge was tested with; a newer one gets a warning in the top bar. */
+export const TESTED_CLAUDE = '2.1.296';
+
+/** True when version a is newer than b ("2.1.300" > "2.1.296"). */
+export function newerVersion(a: string, b: string): boolean {
+  const x = a.split('.').map(Number);
+  const y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+}
+
 /** Ends a process and everything it started. On Windows a signal ends only the process itself, so taskkill ends the tree. */
 export function killTree(child: ChildProcess): void {
   if (windows && child.pid) execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => {});

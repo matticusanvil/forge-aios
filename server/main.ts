@@ -9,7 +9,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { Auth } from './auth.ts';
 import { commitIdentity } from './git.ts';
 import { Notifier, notifyConfigFromEnv } from './notify.ts';
-import { CLAUDE, DATA_DIR, DEFAULT_PROJECT, LAUNCH_KEY, MODE } from './config.ts';
+import { CLAUDE, DATA_DIR, DEFAULT_PROJECT, LAUNCH_KEY, MODE, newerVersion, TESTED_CLAUDE } from './config.ts';
 import { Project, type ClientMessage, type Globals, type ProjectSummary } from './project.ts';
 import { Wikis } from './wikis.ts';
 
@@ -47,7 +47,11 @@ if (MODE === 'desktop' && LAUNCH_KEY.length < 24) {
 if (MODE === 'server' && auth.setupCode) console.log(`Forge AIOS has no password yet. Open it in a browser and use this setup code to set one: ${auth.setupCode}`);
 
 /** Account-wide state: how the CLI is logged in, and plan usage (from any project's stream). */
-const account = { login: null as { loggedIn: boolean; method: string; plan: string | null } | null, rateLimits: null as unknown };
+const account = {
+  login: null as { loggedIn: boolean; method: string; plan: string | null } | null,
+  rateLimits: null as unknown,
+  claude: null as { version: string; tested: boolean } | null,
+};
 
 const globals: Globals = {
   dataDir: DATA,
@@ -65,6 +69,13 @@ const globals: Globals = {
 
 globals.wikis.on('removed', (id: string) => {
   for (const p of projects.values()) p.unlinkWiki(id);
+});
+
+// Which Claude Code this is: Claude Code updates itself, and a version newer than Forge was tested with gets a warning.
+execFile(CLAUDE, ['--version'], (_err, stdout) => {
+  const version = String(stdout ?? '').match(/\d+\.\d+\.\d+/)?.[0];
+  account.claude = version ? { version, tested: !newerVersion(version, TESTED_CLAUDE) } : null;
+  for (const p of projects.values()) p.broadcastSession();
 });
 
 // How the CLI is logged in, so silent API billing is visible (plan: Risks).
