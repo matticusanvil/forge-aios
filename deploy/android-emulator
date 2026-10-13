@@ -1,0 +1,62 @@
+#!/bin/sh
+# Forge's own headless Android emulator (AVD "forge"), on the server's SDK (mounted read only at $ANDROID_HOME).
+# Its own AVD, adb server port (5038) and emulator port (5600), so it never clashes with the server's own emulator.
+#   android-emulator start | stop | status
+set -e
+AVD=forge
+avd_dir="$HOME/.android/avd"
+log="$HOME/.android/emulator.log"
+SERIAL=emulator-5600
+
+running() { adb devices 2>/dev/null | grep -q "^$SERIAL"; }
+
+make_avd() {
+  mkdir -p "$avd_dir/$AVD.avd"
+  printf 'avd.ini.encoding=UTF-8\npath=%s\npath.rel=avd/%s.avd\ntarget=android-35\n' "$avd_dir/$AVD.avd" "$AVD" >"$avd_dir/$AVD.ini"
+  cat >"$avd_dir/$AVD.avd/config.ini" <<CONFIG
+avd.ini.encoding = UTF-8
+abi.type = x86_64
+hw.cpu.arch = x86_64
+hw.cpu.ncore = 4
+hw.ramSize = 2G
+vm.heapSize = 228M
+hw.device.manufacturer = Google
+hw.device.name = pixel_6
+hw.lcd.width = 1080
+hw.lcd.height = 2400
+hw.lcd.density = 420
+hw.keyboard = yes
+hw.gpu.enabled = no
+disk.dataPartition.size = 6442450944
+sdcard.size = 512 MB
+PlayStore.enabled = no
+tag.id = google_apis
+tag.display = Google APIs
+image.sysdir.1 = system-images/android-35/google_apis/x86_64/
+CONFIG
+}
+
+case "${1:-status}" in
+  start)
+    [ -r /dev/kvm ] || { echo "No usable /dev/kvm in this container, so no emulator."; exit 1; }
+    if running; then echo "Already running: $SERIAL"; exit 0; fi
+    [ -f "$avd_dir/$AVD.ini" ] || make_avd
+    adb start-server >/dev/null 2>&1
+    nohup emulator -avd "$AVD" -port 5600 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot-save >"$log" 2>&1 &
+    echo "Booting (about a minute)…"
+    i=0
+    until [ "$(adb -s $SERIAL shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; do
+      i=$((i + 1))
+      if [ $i -gt 120 ]; then echo "Didn't boot in 4 minutes; last lines of $log:"; tail -20 "$log"; exit 1; fi
+      sleep 2
+    done
+    echo "Ready: $SERIAL (adb -s $SERIAL …). Stop it with: android-emulator stop"
+    ;;
+  stop)
+    if running; then adb -s $SERIAL emu kill >/dev/null 2>&1 || true; echo "Stopped."; else echo "Not running."; fi
+    ;;
+  status)
+    if running; then echo "Running: $SERIAL"; else echo "Not running."; fi
+    ;;
+  *) echo "Usage: android-emulator start|stop|status"; exit 2 ;;
+esac

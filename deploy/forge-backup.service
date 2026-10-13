@@ -1,0 +1,7 @@
+[Unit]
+Description=Forge AIOS data backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/repos/forge-aios/deploy/forge-backup.sh
