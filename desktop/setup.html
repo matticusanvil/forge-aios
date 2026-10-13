@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'">
+<title>Set up Forge AIOS</title>
+<style>
+  :root { --black: #000; --s1: #121212; --s2: #1c1c1c; --line: #2e2e2e; --ink: #f5f5f5; --muted: #a3a3a3; --gold: #fdbe16; --gold-hover: #ffd24a; --success: #05df72; --danger: #ff6467; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--black); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { padding: 28px 32px; }
+  .eyebrow { margin: 0; color: var(--gold); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+  h1 { margin: 4px 0 4px; font-size: 26px; font-weight: 600; }
+  .lead { margin: 0 0 20px; color: var(--muted); }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; background: var(--s1); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 0 10px 10px 0; padding: 12px 14px; }
+  li.done { border-left-color: var(--success); }
+  li.current { border-left-color: var(--gold); }
+  .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--s2); color: var(--muted); font-weight: 600; font-size: 13px; }
+  li.done .num { background: var(--success); color: #000; }
+  li.current .num { background: var(--gold); color: #000; }
+  .title { font-weight: 600; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .msg { color: var(--danger); font-size: 13px; }
+  button { font: inherit; font-weight: 600; border-radius: 8px; padding: 7px 14px; cursor: pointer; border: 1px solid var(--gold); background: var(--gold); color: #000; }
+  button:hover:not(:disabled) { background: var(--gold-hover); }
+  button.secondary { background: transparent; color: var(--ink); border-color: #7a7a7a; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .folder { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .path { font: 13px Consolas, monospace; color: var(--ink); background: var(--s2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
+  footer { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+  .small { color: var(--muted); font-size: 12px; max-width: 470px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Forge AIOS</p>
+  <h1>Let’s get you set up</h1>
+  <p class="lead">Four quick steps. Forge AIOS runs Claude Code on this computer, signed in with your own Claude account.</p>
+  <ol>
+    <li id="step-git">
+      <span class="num">1</span>
+      <div><div class="title">Install Git</div><div class="hint">Claude Code uses it to run commands and track changes.</div><div class="msg" hidden></div></div>
+      <button data-install="git">Install</button>
+    </li>
+    <li id="step-claude">
+      <span class="num">2</span>
+      <div><div class="title">Install Claude Code</div><div class="hint">Anthropic’s official installer, a few minutes.</div><div class="msg" hidden></div></div>
+      <button data-install="claude">Install</button>
+    </li>
+    <li id="step-signin">
+      <span class="num">3</span>
+      <div><div class="title">Sign in to Claude</div><div class="hint">A Claude Code window opens: choose your Claude account (Pro, Max, Team or Enterprise) or an API key, and follow its steps. Forge never sees your sign-in.</div><div class="msg" hidden></div></div>
+      <button id="signin">Sign in</button>
+    </li>
+    <li id="step-folder">
+      <span class="num">4</span>
+      <div>
+        <div class="title">Choose a folder for your projects</div>
+        <div class="folder"><span class="path" id="folder"></span><button class="secondary" id="browse">Change…</button></div>
+      </div>
+      <span></span>
+    </li>
+  </ol>
+  <footer>
+    <span class="small">Forge AIOS is free and open source, and isn’t made by Anthropic. Claude usage is billed to your own Claude plan or API key.</span>
+    <button id="finish" disabled>Open Forge AIOS</button>
+  </footer>
+  <p class="msg" id="finish-msg" hidden></p>
+</main>
+<script src="setup.js"></script>
+</body>
+</html>

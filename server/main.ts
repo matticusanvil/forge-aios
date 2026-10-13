@@ -197,7 +197,10 @@ async function createProject(name: string): Promise<string> {
   fs.writeFileSync(path.join(dir, 'README.md'), `# ${name}\n`);
   await run('git', ['-C', dir, 'init', '--quiet', '-b', 'main']);
   await run('git', ['-C', dir, 'add', '-A']);
-  await run('git', ['-C', dir, 'commit', '--quiet', '-m', 'Start project']);
+  // A new PC may have no git name or email yet; the first commit still needs one.
+  const named = await run('git', ['-C', dir, 'config', 'user.email']).then((r) => !!r.stdout.trim(), () => false);
+  const identity = named ? [] : ['-c', 'user.name=Forge AIOS', '-c', 'user.email=forge-aios@localhost'];
+  await run('git', ['-C', dir, ...identity, 'commit', '--quiet', '-m', 'Start project']);
   return name;
 }
 

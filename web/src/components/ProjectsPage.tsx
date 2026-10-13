@@ -22,6 +22,9 @@ function status(p: ProjectSummary): [PillStatus, string] {
 }
 
 /** Every project on the server, with what each is doing, and adding one: clone from GitHub, or start empty. */
+/** Set when Forge runs inside its Windows app, which offers a folder picker. */
+const desktop = (window as unknown as { forgeDesktop?: { pickFolder: () => Promise<string | null> } }).forgeDesktop;
+
 export function ProjectsPage({ projects, current, result, send, onSignedOut }: Props) {
   const [repo, setRepo] = useState('');
   const [name, setName] = useState('');
@@ -100,6 +103,9 @@ export function ProjectsPage({ projects, current, result, send, onSignedOut }: P
                 <span className="fa-field__label">Open a folder on this computer</span>
                 <input className="fa-input fa-input--data" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="C:\Users\you\code\my-app" />
               </label>
+              {desktop && (
+                <button type="button" className="fa-btn fa-btn--secondary" disabled={!!pending} onClick={async () => { const picked = await desktop.pickFolder(); if (picked) setFolder(picked); }}>Browse…</button>
+              )}
               <button className="fa-btn fa-btn--secondary" disabled={!!pending || !folder.trim()}>{pending === 'folder' ? 'Opening…' : 'Open'}</button>
             </form>
             <form className="cockpit-rules__form cockpit-rules__create" onSubmit={(e) => { e.preventDefault(); setError(null); setPending('create'); send({ type: 'projectCreate', name: name.trim() }); }}>

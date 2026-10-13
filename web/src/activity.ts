@@ -33,10 +33,17 @@ export function sessionEvents(events: ForgeEvent[]): ForgeEvent[] {
   return reset === -1 ? events : events.slice(reset + 1);
 }
 
-/** A path inside the project, relative to it; anything else stays absolute. */
+/**
+ * A path inside the project, relative to it, with / separators as git writes them; anything else stays absolute.
+ * On Windows (a root like C:\\…) either slash works and case doesn't matter.
+ */
 export function projectPath(file: string, root: string): string {
-  const base = root.endsWith('/') ? root : `${root}/`;
-  return file.startsWith(base) ? file.slice(base.length) : file;
+  const windows = /^[A-Za-z]:[\\/]/.test(root);
+  const norm = (p: string) => (windows ? p.replace(/\\/g, '/') : p);
+  const f = norm(file);
+  const base = `${norm(root).replace(/\/+$/, '')}/`;
+  const inside = windows ? f.toLowerCase().startsWith(base.toLowerCase()) : f.startsWith(base);
+  return inside ? f.slice(base.length) : f;
 }
 
 const filePathOf = (input: any): string | undefined => (typeof input?.file_path === 'string' ? input.file_path : typeof input?.notebook_path === 'string' ? input.notebook_path : undefined);

@@ -1,0 +1,42 @@
+{
+  "name": "forge-aios-desktop",
+  "productName": "Forge AIOS",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser cockpit for Claude Code, as a Windows app.",
+  "author": "Anvil Digital",
+  "license": "Apache-2.0",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "prepare-forge": "node prepare.mjs",
+    "dist": "node prepare.mjs && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "ca.anvildigital.forgeaios",
+    "productName": "Forge AIOS",
+    "copyright": "Copyright 2026 Anvil Digital",
+    "directories": { "output": "dist", "buildResources": "." },
+    "files": ["main.cjs", "preload.cjs", "setup.html", "setup.js", "icon.png"],
+    "extraResources": [
+      { "from": "build/forge", "to": "forge" },
+      { "from": "build/node", "to": "node" }
+    ],
+    "win": { "target": "nsis", "icon": "icon.png", "artifactName": "Forge-AIOS-Setup-${version}.${ext}" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "uninstall.nsh"
+    },
+    "publish": { "provider": "github", "owner": "matticusanvil", "repo": "forge-aios" }
+  }
+}
