@@ -1,4 +1,5 @@
 import { execFile, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -11,8 +12,14 @@ export const DATA_DIR = process.env.FORGE_DATA ?? (windows ? path.join(localAppD
 /** The project a new browser opens first; every folder beside it is a project too. */
 export const DEFAULT_PROJECT = process.env.FORGE_PROJECT ?? (windows ? path.join(os.homedir(), 'Forge AIOS', 'playground') : '/srv/repos/playground');
 
-/** The Claude Code command: FORGE_CLAUDE (a full path), else `claude` from the PATH. */
-export const CLAUDE = process.env.FORGE_CLAUDE ?? 'claude';
+/**
+ * The Claude Code command: FORGE_CLAUDE (a full path), else where Anthropic's Windows installer puts it
+ * (it doesn't always add that folder to the PATH), else `claude` from the PATH.
+ */
+export const CLAUDE = process.env.FORGE_CLAUDE ?? (() => {
+  const installed = path.join(os.homedir(), '.local', 'bin', 'claude.exe');
+  return windows && fs.existsSync(installed) ? installed : 'claude';
+})();
 
 /** Ends a process and everything it started. On Windows a signal ends only the process itself, so taskkill ends the tree. */
 export function killTree(child: ChildProcess): void {
