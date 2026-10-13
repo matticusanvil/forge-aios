@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { WikiInfo } from '../shared/types.ts';
+import { commitIdentity } from './git.ts';
 
 const run = promisify(execFile);
 
@@ -142,7 +143,7 @@ export class Wikis extends EventEmitter {
     const dir = this.pathOf(id);
     await git(dir, ['init', '--quiet', '-b', 'main']);
     await git(dir, ['add', '-A']);
-    await git(dir, ['commit', '--quiet', '-m', 'init: wiki scaffold and first source']);
+    await git(dir, [...(await commitIdentity(dir)), 'commit', '--quiet', '-m', 'init: wiki scaffold and first source']);
   }
 
   /** Deletes the server's copy (a wiki on GitHub keeps its repo there). Emits 'removed' so every project unlinks it. */
@@ -161,7 +162,7 @@ export class Wikis extends EventEmitter {
     const dir = this.pathOf(id);
     await git(dir, ['add', '-A']);
     const staged = await git(dir, ['diff', '--cached', '--name-only']);
-    if (staged) await git(dir, ['commit', '--quiet', '-m', message]);
+    if (staged) await git(dir, [...(await commitIdentity(dir)), 'commit', '--quiet', '-m', message]);
   }
 
   /** Creates the private GitHub repo and pushes. Returns its URL. */

@@ -26,6 +26,12 @@ function lineCount(file: string): number | null {
 }
 
 /** The project's working-tree changes against HEAD: what the agents (or anyone) changed and haven't committed. */
+/** Commit settings for a repo whose PC has no git name or email yet (a new Windows PC): Forge's own, so the commit still works. */
+export async function commitIdentity(cwd: string): Promise<string[]> {
+  const email = await run('git', ['-C', cwd, 'config', 'user.email']).then((r) => r.stdout.trim(), () => '');
+  return email ? [] : ['-c', 'user.name=Forge AIOS', '-c', 'user.email=forge-aios@localhost'];
+}
+
 export async function gitState(cwd: string): Promise<GitState> {
   try {
     const branch = (await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).catch(() => '')).trim() || null;

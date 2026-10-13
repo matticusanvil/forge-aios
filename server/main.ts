@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Auth } from './auth.ts';
+import { commitIdentity } from './git.ts';
 import { Notifier, notifyConfigFromEnv } from './notify.ts';
 import { CLAUDE, DATA_DIR, DEFAULT_PROJECT, LAUNCH_KEY, MODE } from './config.ts';
 import { Project, type ClientMessage, type Globals, type ProjectSummary } from './project.ts';
@@ -197,10 +198,7 @@ async function createProject(name: string): Promise<string> {
   fs.writeFileSync(path.join(dir, 'README.md'), `# ${name}\n`);
   await run('git', ['-C', dir, 'init', '--quiet', '-b', 'main']);
   await run('git', ['-C', dir, 'add', '-A']);
-  // A new PC may have no git name or email yet; the first commit still needs one.
-  const named = await run('git', ['-C', dir, 'config', 'user.email']).then((r) => !!r.stdout.trim(), () => false);
-  const identity = named ? [] : ['-c', 'user.name=Forge AIOS', '-c', 'user.email=forge-aios@localhost'];
-  await run('git', ['-C', dir, ...identity, 'commit', '--quiet', '-m', 'Start project']);
+  await run('git', ['-C', dir, ...(await commitIdentity(dir)), 'commit', '--quiet', '-m', 'Start project']);
   return name;
 }
 
