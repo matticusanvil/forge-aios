@@ -26,3 +26,11 @@ export function killTree(child: ChildProcess): void {
   if (windows && child.pid) execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => {});
   else child.kill('SIGTERM');
 }
+
+/**
+ * "desktop": one person on this PC, started by the Forge AIOS app: it listens on this PC only, has no password,
+ * and the app's window signs in with FORGE_LAUNCH_KEY, a new random key each launch.
+ * "server" (the default): the Docker setup, reached over the network, behind the shared password.
+ */
+export const MODE: 'desktop' | 'server' = process.env.FORGE_MODE === 'desktop' ? 'desktop' : 'server';
+export const LAUNCH_KEY = process.env.FORGE_LAUNCH_KEY ?? '';

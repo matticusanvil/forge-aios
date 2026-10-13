@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Auth } from './auth.ts';
 import { Notifier, notifyConfigFromEnv } from './notify.ts';
-import { CLAUDE, DATA_DIR, DEFAULT_PROJECT } from './paths.ts';
+import { CLAUDE, DATA_DIR, DEFAULT_PROJECT, LAUNCH_KEY, MODE } from './config.ts';
 import { Project, type ClientMessage, type Globals, type ProjectSummary } from './project.ts';
 import { Wikis } from './wikis.ts';
 
@@ -19,7 +19,12 @@ const PORT = Number(process.env.PORT ?? 3200);
 const DEFAULT_DIR = DEFAULT_PROJECT;
 const REPOS = process.env.FORGE_REPOS ?? path.dirname(DEFAULT_DIR);
 const DATA = DATA_DIR;
-fs.mkdirSync(REPOS, { recursive: true });
+try {
+  fs.mkdirSync(REPOS, { recursive: true });
+} catch (err) {
+  console.error(`Forge AIOS can't use ${REPOS} as its projects folder: ${(err as Error).message}. Set FORGE_PROJECT to a folder you can write to.`);
+  process.exit(1);
+}
 // Normally empty: the PreToolUse hook decides every call. Kept for tests that need a fixed allowlist.
 const ALLOWED_TOOLS = process.env.FORGE_ALLOWED_TOOLS ? process.env.FORGE_ALLOWED_TOOLS.split(',') : [];
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -34,7 +39,11 @@ const hookToken = randomBytes(24).toString('hex');
 
 // Everything else needs the shared password (or, for scripts and tests, the API token).
 const auth = new Auth(DATA, process.env.FORGE_API_TOKEN);
-if (auth.setupCode) console.log(`Forge AIOS has no password yet. Open it in a browser and use this setup code to set one: ${auth.setupCode}`);
+if (MODE === 'desktop' && LAUNCH_KEY.length < 24) {
+  console.error('Desktop mode needs FORGE_LAUNCH_KEY (24 or more characters); the Forge AIOS app sets it.');
+  process.exit(1);
+}
+if (MODE === 'server' && auth.setupCode) console.log(`Forge AIOS has no password yet. Open it in a browser and use this setup code to set one: ${auth.setupCode}`);
 
 /** Account-wide state: how the CLI is logged in, and plan usage (from any project's stream). */
 const account = { login: null as { loggedIn: boolean; method: string; plan: string | null } | null, rateLimits: null as unknown };
@@ -71,15 +80,49 @@ execFile(CLAUDE, ['auth', 'status'], { env: { ...process.env, ANTHROPIC_API_KEY:
 // ---------- projects ----------
 
 /** Every folder in the repos directory is a project, except hidden ones (like the wikis folder). */
-function projectNames(): string[] {
+/** Folders opened from elsewhere on this PC (name → full path), beside the ones in the projects folder. */
+const OPENED = path.join(DATA, 'projects.json');
+function openedFolders(): Record<string, string> {
   try {
-    return fs.readdirSync(REPOS, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && !e.name.startsWith('.') && NAME.test(e.name))
-      .map((e) => e.name)
-      .sort((a, b) => a.localeCompare(b));
+    return JSON.parse(fs.readFileSync(OPENED, 'utf8'));
   } catch {
-    return [];
+    return {};
   }
+}
+
+function projectNames(): string[] {
+  let inFolder: string[] = [];
+  try {
+    inFolder = fs.readdirSync(REPOS, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.') && NAME.test(e.name))
+      .map((e) => e.name);
+  } catch {}
+  const opened = Object.entries(openedFolders()).filter(([, dir]) => fs.existsSync(dir)).map(([name]) => name);
+  return [...new Set([...inFolder, ...opened])].sort((a, b) => a.localeCompare(b));
+}
+
+/** Where a project lives: an opened folder, or its folder in the projects folder. */
+const projectDir = (name: string) => openedFolders()[name] ?? path.join(REPOS, name);
+
+/** Adds a folder from elsewhere on this PC as a project, named after the folder. The folder itself isn't changed. */
+async function openFolder(dir: string): Promise<string> {
+  if (!path.isAbsolute(dir)) throw new Error('Give the full path of the folder.');
+  const full = path.resolve(dir);
+  if (!fs.existsSync(full) || !fs.statSync(full).isDirectory()) throw new Error(`There's no folder at ${full}.`);
+  const opened = openedFolders();
+  const already = projectNames().find((n) => path.resolve(projectDir(n)) === full);
+  if (already) return already;
+  const base = path.basename(full).replace(/[^\w.-]+/g, '-').replace(/^[^A-Za-z0-9]+/, '').slice(0, 60) || 'project';
+  let name = base;
+  for (let i = 2; projectNames().includes(name); i++) name = `${base}-${i}`;
+  fs.writeFileSync(OPENED, JSON.stringify({ ...opened, [name]: full }, null, 2));
+  return name;
+}
+
+/** Takes an opened folder off the list. Its files and Forge's history for it stay. */
+function forgetFolder(name: string): void {
+  const { [name]: _gone, ...rest } = openedFolders();
+  fs.writeFileSync(OPENED, JSON.stringify(rest, null, 2));
 }
 
 const projects = new Map<string, Project>();
@@ -95,7 +138,7 @@ function project(name: string): Project | null {
   const loaded = projects.get(name);
   if (loaded) return loaded;
   if (!NAME.test(name) || !projectNames().includes(name)) return null;
-  const p = new Project(name, path.join(REPOS, name), globals);
+  const p = new Project(name, projectDir(name), globals);
   p.on('message', (msg: object) => {
     const text = JSON.stringify(msg);
     for (const [ws, watching] of clients) if (watching === name && ws.readyState === ws.OPEN) ws.send(text);
@@ -107,7 +150,11 @@ function project(name: string): Project | null {
 }
 
 function summaries(): ProjectSummary[] {
-  return projectNames().map((name) => projects.get(name)?.summary() ?? { name, live: false, busy: false, waiting: 0, running: 0, sessionName: null });
+  const opened = openedFolders();
+  return projectNames().map((name) => ({
+    ...(projects.get(name)?.summary() ?? { name, live: false, busy: false, waiting: 0, running: 0, sessionName: null }),
+    ...(opened[name] && { opened: opened[name] }),
+  }));
 }
 
 let anyLive = false;
@@ -154,7 +201,12 @@ async function createProject(name: string): Promise<string> {
   return name;
 }
 
-type ServerOnlyMessage = { type: 'open'; project: string } | { type: 'projectClone'; repo: string } | { type: 'projectCreate'; name: string };
+type ServerOnlyMessage =
+  | { type: 'open'; project: string }
+  | { type: 'projectClone'; repo: string }
+  | { type: 'projectCreate'; name: string }
+  | { type: 'projectOpenFolder'; path: string }
+  | { type: 'projectForget'; name: string };
 
 function onClient(ws: WebSocket, msg: ClientMessage | ServerOnlyMessage): void {
   switch (msg.type) {
@@ -166,9 +218,23 @@ function onClient(ws: WebSocket, msg: ClientMessage | ServerOnlyMessage): void {
       send(ws, { type: 'projects', projects: summaries() });
       return;
     }
+    case 'projectForget': {
+      const name = String(msg.name);
+      if (!(name in openedFolders())) return send(ws, { type: 'projectResult', ok: false, error: 'Only opened folders can be taken off the list.' });
+      projects.get(name)?.shutdown();
+      projects.delete(name);
+      forgetFolder(name);
+      send(ws, { type: 'projectResult', ok: true, name });
+      broadcastProjects();
+      return;
+    }
     case 'projectClone':
-    case 'projectCreate': {
-      const work = msg.type === 'projectClone' ? cloneProject(String(msg.repo ?? '').trim()) : createProject(String(msg.name ?? '').trim());
+    case 'projectCreate':
+    case 'projectOpenFolder': {
+      const work =
+        msg.type === 'projectClone' ? cloneProject(String(msg.repo ?? '').trim())
+        : msg.type === 'projectCreate' ? createProject(String(msg.name ?? '').trim())
+        : openFolder(String(msg.path ?? '').trim());
       work
         .then((name) => {
           send(ws, { type: 'projectResult', ok: true, name });
@@ -207,6 +273,28 @@ async function readBody(req: http.IncomingMessage, limit = 1_000_000): Promise<s
     if (raw.length > limit) throw new Error('body too large');
   }
   return raw;
+}
+
+/**
+ * Requests a web page in your browser could forge. Any Origin must be Forge's own page (no other site can drive it), and in
+ * desktop mode the request must be addressed to this PC by name, so a site can't point its own domain at 127.0.0.1.
+ */
+function trusted(req: http.IncomingMessage): boolean {
+  const host = req.headers.host ?? '';
+  if (MODE === 'desktop' && host !== `127.0.0.1:${PORT}` && host !== `localhost:${PORT}`) return false;
+  const origin = req.headers.origin;
+  return !origin || origin === `http://${host}` || origin === `https://${host}`;
+}
+
+/** Desktop mode: the app's window opens /launch?key=…; the right key signs this browser in, with no password. */
+function onLaunch(res: http.ServerResponse, url: URL): void {
+  const key = url.searchParams.get('key') ?? '';
+  if (MODE !== 'desktop' || !LAUNCH_KEY || key.length !== LAUNCH_KEY.length || !timingSafeEqual(Buffer.from(key), Buffer.from(LAUNCH_KEY))) {
+    return json(res, 403, { error: 'Open Forge AIOS from its app.' });
+  }
+  auth.signIn(res, 'Strict');
+  res.writeHead(302, { location: '/' });
+  res.end();
 }
 
 /** Sign-in, sign-out, and setting the password (first with the setup code, then with the current password). */
@@ -279,8 +367,11 @@ const server = http.createServer((req, res) => {
   const phone = req.method === 'POST' && url.pathname.match(/^\/api\/approvals\/([\w-]+)\/decide$/);
   if (phone) return onPhoneDecision(res, phone[1], url);
   if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, projects: projectNames().length });
-  if (req.method === 'GET' && url.pathname === '/api/auth') return json(res, 200, { signedIn: auth.allowed(req), passwordSet: auth.passwordSet });
-  const authAction = req.method === 'POST' && url.pathname.match(/^\/api\/(login|logout|password)$/);
+  if (!trusted(req)) return json(res, 403, { error: 'forbidden' });
+  if (req.method === 'GET' && url.pathname === '/launch') return onLaunch(res, url);
+  if (req.method === 'GET' && url.pathname === '/api/auth') return json(res, 200, { signedIn: auth.allowed(req), passwordSet: auth.passwordSet, mode: MODE });
+  // Desktop mode has no password: only sign-out is left.
+  const authAction = req.method === 'POST' && url.pathname.match(MODE === 'desktop' ? /^\/api\/(logout)$/ : /^\/api\/(login|logout|password)$/);
   if (authAction) {
     onAuth(req, res, authAction[1]).catch(() => json(res, 400, { error: 'bad request' }));
     return;
@@ -299,6 +390,7 @@ const server = http.createServer((req, res) => {
 // A browser opens a project with ?project=… or an 'open' message; without either it gets the default one (tests rely on this).
 const wss = new WebSocketServer({ server, path: '/ws' });
 wss.on('connection', (ws, req) => {
+  if (!trusted(req)) return ws.close(4403, 'Forbidden.');
   if (!auth.allowed(req)) return ws.close(4401, 'Sign in first.');
   const asked = new URL(req.url ?? '/ws', 'http://localhost').searchParams.get('project');
   const p = project(asked ?? '') ?? project(defaultProject() ?? '');
@@ -319,7 +411,8 @@ wss.on('connection', (ws, req) => {
 for (const name of projectNames()) if (Project.hasHistory(DATA, name)) project(name);
 project(defaultProject() ?? '');
 
-server.listen(PORT, () => console.log(`Forge AIOS on :${PORT}, ${projectNames().length} projects in ${REPOS}, phone ${globals.notifier.enabled ? 'on' : 'off'}`));
+// Desktop mode is for this PC alone; server mode is reached over the network.
+server.listen(PORT, MODE === 'desktop' ? '127.0.0.1' : undefined, () => console.log(`Forge AIOS on :${PORT}, ${projectNames().length} projects in ${REPOS}, phone ${globals.notifier.enabled ? 'on' : 'off'}`));
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {

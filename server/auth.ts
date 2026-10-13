@@ -91,12 +91,12 @@ export class Auth {
   }
 
   /** A new sign-in: the token goes in the cookie; only its hash is kept. */
-  signIn(res: http.ServerResponse): void {
+  signIn(res: http.ServerResponse, sameSite: 'Lax' | 'Strict' = 'Lax'): void {
     const token = randomBytes(32).toString('base64url');
     const cutoff = Date.now() - SESSION_DAYS * 864e5;
     this.data.sessions = [...this.data.sessions.filter((s) => Date.parse(s.created) > cutoff), { id: sha256(token), created: new Date().toISOString() }];
     this.save();
-    res.setHeader('Set-Cookie', `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}`);
+    res.setHeader('Set-Cookie', `${COOKIE}=${token}; HttpOnly; SameSite=${sameSite}; Path=/; Max-Age=${SESSION_DAYS * 86400}`);
   }
 
   signOut(req: http.IncomingMessage, res: http.ServerResponse): void {

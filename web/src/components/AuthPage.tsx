@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-type Props = { passwordSet: boolean; onSignedIn: () => void };
+type Props = { passwordSet: boolean; desktop?: boolean; onSignedIn: () => void };
 
 async function post(path: string, body: object): Promise<string | null> {
   const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -9,7 +9,28 @@ async function post(path: string, body: object): Promise<string | null> {
 }
 
 /** AuthShell: the shared-password sign-in, or, before there is a password, setting it with the server's setup code. */
-export function AuthPage({ passwordSet, onSignedIn }: Props) {
+export function AuthPage({ passwordSet, desktop, onSignedIn }: Props) {
+  if (desktop) return <DesktopOnly />;
+  return <PasswordForm passwordSet={passwordSet} onSignedIn={onSignedIn} />;
+}
+
+/** Desktop mode has no password: only the app's own window can open it. */
+function DesktopOnly() {
+  return (
+    <main className="fa-auth">
+      <div className="fa-auth__col">
+        <p className="fa-auth__eyebrow">Forge AIOS</p>
+        <h1 className="fa-auth__title">Open it from the app</h1>
+        <div className="fa-auth__bar" aria-hidden="true"><span /><span /></div>
+        <div className="fa-auth__panel">
+          <p className="fa-meta">Forge AIOS runs in its own window. Open it from the Start menu, or from its icon in the system tray.</p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function PasswordForm({ passwordSet, onSignedIn }: { passwordSet: boolean; onSignedIn: () => void }) {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [confirm, setConfirm] = useState('');

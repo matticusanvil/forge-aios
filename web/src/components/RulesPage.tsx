@@ -113,6 +113,11 @@ export function RulesPage({ session, agents, allowRules, send }: Props) {
     onMakeDefault: () => setDefault({ [key]: rules[key] } as Partial<Rules>),
     onReset: () => set({ [key]: defaults[key] } as Partial<Rules>),
   });
+  // "Allow everything" lets Claude run anything without asking, so it's never one accidental click away.
+  const chooseLevel = (level: ApprovalLevel) => {
+    if (level === 'all' && !window.confirm('Allow everything: Claude will run any command and change any file without asking you, including deleting files and pushing code. Only choose this for a project you could lose. Continue?')) return;
+    set({ approvals: level });
+  };
   const running = (model: string) =>
     agents.filter((a) => !a.endedAt && a.status !== 'idle' && (a.model === model || (!a.model && (session.mainModel ?? 'opus') === model))).length;
 
@@ -207,7 +212,7 @@ export function RulesPage({ session, agents, allowRules, send }: Props) {
             label="Approval level"
             hint={APPROVAL_LEVELS.find((l) => l.id === rules.approvals)?.hint ?? ''}
             control={
-              <select className="fa-input" aria-label="Approval level" value={rules.approvals} onChange={(e) => set({ approvals: e.target.value as ApprovalLevel })}>
+              <select className="fa-input" aria-label="Approval level" value={rules.approvals} onChange={(e) => chooseLevel(e.target.value as ApprovalLevel)}>
                 {APPROVAL_LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
               </select>
             }

@@ -166,7 +166,11 @@ export type GitState = {
 };
 
 /** One project's row in the sidebar and the projects overview. */
-export type ProjectSummary = { name: string; live: boolean; busy: boolean; waiting: number; running: number; sessionName: string | null };
+export type ProjectSummary = {
+  name: string; live: boolean; busy: boolean; waiting: number; running: number; sessionName: string | null;
+  /** Set for a folder opened from elsewhere on this PC: its full path. */
+  opened?: string;
+};
 
 export type ServerMessage =
   | { type: 'hello'; session: SessionState; agents: Agent[]; approvals: Approval[]; rules: Rule[]; events: ForgeEvent[]; git: GitState }

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { DATA_DIR } from './paths.ts';
+import { DATA_DIR } from './config.ts';
 
 const DATA = DATA_DIR;
 const out = process.argv[2];

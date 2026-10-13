@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { APPROVAL_LEVELS, DEFAULT_RULES, MODELS, type Rules } from '../shared/types.ts';
+import { MODE } from './config.ts';
 import type { EventLog } from './eventlog.ts';
 
 const MODEL_IDS = new Set<string>(MODELS.map((m) => m.id));
+// On a desktop PC, at most 3 agents at once until the user says otherwise: a Pro plan's limit goes fast with many.
+const BASE_RULES: Rules = MODE === 'desktop' ? { ...DEFAULT_RULES, maxRunning: 3 } : DEFAULT_RULES;
 
 const limit = (v: unknown): number | null | undefined => {
   if (v === null) return null;
@@ -40,9 +43,9 @@ export class RulesStore {
 
   defaults(): Rules {
     try {
-      return { ...DEFAULT_RULES, ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
+      return { ...BASE_RULES, ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
     } catch {
-      return { ...DEFAULT_RULES };
+      return { ...BASE_RULES };
     }
   }
 

@@ -36,7 +36,9 @@ export type ClientMessage =
   | { type: 'reset'; model?: string; name?: string; approvals?: ApprovalLevel }
   | { type: 'open'; project: string }
   | { type: 'projectClone'; repo: string }
-  | { type: 'projectCreate'; name: string };
+  | { type: 'projectCreate'; name: string }
+  | { type: 'projectOpenFolder'; path: string }
+  | { type: 'projectForget'; name: string };
 
 // Enough history for a long session; older events stay in the database.
 const MAX_EVENTS = 4000;

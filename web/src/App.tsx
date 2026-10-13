@@ -16,13 +16,13 @@ import { useForge } from './useForge.ts';
 
 /** Signed in, or the sign-in page first. The cockpit only connects once the server will let it. */
 export function App() {
-  const [auth, setAuth] = useState<{ signedIn: boolean; passwordSet: boolean } | null>(null);
+  const [auth, setAuth] = useState<{ signedIn: boolean; passwordSet: boolean; mode?: 'desktop' | 'server' } | null>(null);
   const check = useCallback(() => {
     fetch('/api/auth').then((r) => r.json()).then(setAuth).catch(() => setTimeout(check, 2000));
   }, []);
   useEffect(check, [check]);
   if (!auth) return null;
-  if (!auth.signedIn) return <AuthPage passwordSet={auth.passwordSet} onSignedIn={check} />;
+  if (!auth.signedIn) return <AuthPage passwordSet={auth.passwordSet} desktop={auth.mode === 'desktop'} onSignedIn={check} />;
   return <Cockpit onSignedOut={check} />;
 }
 

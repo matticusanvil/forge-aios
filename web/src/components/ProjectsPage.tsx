@@ -25,6 +25,7 @@ function status(p: ProjectSummary): [PillStatus, string] {
 export function ProjectsPage({ projects, current, result, send, onSignedOut }: Props) {
   const [repo, setRepo] = useState('');
   const [name, setName] = useState('');
+  const [folder, setFolder] = useState('');
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +69,11 @@ export function ProjectsPage({ projects, current, result, send, onSignedOut }: P
                       <td>
                         <a className="fa-table__name" href={projectHref(p.name)}>{p.name}</a>
                         {p.name === current && <span className="fa-table__sub">Open</span>}
+                        {p.opened && (
+                          <span className="fa-table__sub">
+                            {p.opened} · <button className="fa-link" onClick={() => send({ type: 'projectForget', name: p.name })}>Remove from list</button>
+                          </span>
+                        )}
                       </td>
                       <td>{p.sessionName ?? '—'}</td>
                       <td><StatusPill status={s} label={label} /></td>
@@ -89,6 +95,13 @@ export function ProjectsPage({ projects, current, result, send, onSignedOut }: P
               </label>
               <button className="fa-btn" disabled={!!pending || !/^[\w.-]+\/[\w.-]+$/.test(repo.trim())}>{pending === 'clone' ? 'Cloning…' : 'Clone'}</button>
             </form>
+            <form className="cockpit-rules__form" onSubmit={(e) => { e.preventDefault(); setError(null); setPending('folder'); send({ type: 'projectOpenFolder', path: folder.trim() }); }}>
+              <label className="fa-field cockpit-grow">
+                <span className="fa-field__label">Open a folder on this computer</span>
+                <input className="fa-input fa-input--data" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="C:\Users\you\code\my-app" />
+              </label>
+              <button className="fa-btn fa-btn--secondary" disabled={!!pending || !folder.trim()}>{pending === 'folder' ? 'Opening…' : 'Open'}</button>
+            </form>
             <form className="cockpit-rules__form cockpit-rules__create" onSubmit={(e) => { e.preventDefault(); setError(null); setPending('create'); send({ type: 'projectCreate', name: name.trim() }); }}>
               <label className="fa-field cockpit-grow">
                 <span className="fa-field__label">New empty project</span>
@@ -99,7 +112,7 @@ export function ProjectsPage({ projects, current, result, send, onSignedOut }: P
             {error && (
               <p className="fa-msg fa-msg--error" role="alert"><span className="fa-msg__cap">Error</span><span className="fa-msg__body">{error}</span></p>
             )}
-            <p className="fa-field__hint">Cloning uses the server’s GitHub login. A new project starts as a git repo with a README.</p>
+            <p className="fa-field__hint">Cloning uses this computer’s GitHub login. An opened folder stays where it is; removing it from the list leaves its files alone. A new project starts as a git repo with a README.</p>
           </div>
         </section>
 
